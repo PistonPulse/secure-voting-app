@@ -1,0 +1,107 @@
+<%- include('partials/header') %>
+
+<div class="voting-page">
+    <div class="container">
+        <header class="page-header">
+            <div class="header-content">
+                <div class="header-main">
+                    <h2>Active Polls</h2>
+                    <% if (session && session.userId) { %>
+                        <p class="user-welcome">Welcome, <strong><%= session.username %></strong>!</p>
+                    <% } %>
+                </div>
+                <div class="header-actions">
+                    <a href="/results" class="btn btn-secondary">View Results</a>
+                    <a href="/logout" class="btn btn-outline">Logout</a>
+                </div>
+            </div>
+        </header>
+
+        <div class="polls-grid">
+            <% if (poll) { %>
+                <div class="card poll-card <%= hasVoted ? 'poll-voted' : '' %>">
+                    <div class="card-header">
+                        <h3 class="poll-title"><%= poll.question %></h3>
+                        <% if (hasVoted) { %>
+                            <span class="voted-badge">✓ Voted</span>
+                        <% } %>
+                    </div>
+                    
+                    <% if (hasVoted) { %>
+                        <div class="already-voted-message">
+                            <p><strong>✓ You voted for: <%= userVote %></strong></p>
+                            <p class="results-link"><a href="/results">View all results →</a></p>
+                        </div>
+                        
+                        <!-- Show options in read-only mode -->
+                        <div class="options-list disabled">
+                            <% poll.options.forEach(option => { %>
+                                <div class="option-item <%= option === userVote ? 'selected' : '' %>">
+                                    <input 
+                                        type="radio" 
+                                        id="option-<%= poll.id %>-<%= option %>" 
+                                        name="option" 
+                                        value="<%= option %>" 
+                                        <%= option === userVote ? 'checked' : '' %>
+                                        disabled
+                                        class="radio-input"
+                                    >
+                                    <label 
+                                        for="option-<%= poll.id %>-<%= option %>"
+                                        class="radio-label"
+                                    >
+                                        <%= option %>
+                                        <% if (option === userVote) { %>
+                                            <span class="vote-marker">✓ Your Vote</span>
+                                        <% } %>
+                                    </label>
+                                </div>
+                            <% }) %>
+                        </div>
+                    <% } else { %>
+                        <form action="/vote" method="POST" class="vote-form" novalidate>
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                            <input type="hidden" name="pollId" value="<%= poll.id %>">
+                            
+                            <div class="options-list">
+                                <% poll.options.forEach(option => { %>
+                                    <div class="option-item">
+                                        <input 
+                                            type="radio" 
+                                            id="option-<%= poll.id %>-<%= option %>" 
+                                            name="option" 
+                                            value="<%= option %>" 
+                                            required
+                                            class="radio-input"
+                                        >
+                                        <label 
+                                            for="option-<%= poll.id %>-<%= option %>"
+                                            class="radio-label"
+                                        >
+                                            <%= option %>
+                                        </label>
+                                    </div>
+                                <% }) %>
+                            </div>
+                            
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">
+                                    <span class="btn-icon">📝</span>
+                                    Cast Vote
+                                </button>
+                            </div>
+                        </form>
+                    <% } %>
+                </div>
+            <% } else { %>
+                <div class="empty-state">
+                    <div class="icon">📊</div>
+                    <h3>No Active Polls</h3>
+                    <p>There are no polls available for voting at the moment. Please check back later!</p>
+                </div>
+            <% } %>
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %>

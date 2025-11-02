@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - SecurePolls</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: white;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header-left h1 {
+            color: #667eea;
+            font-size: 1.8rem;
+            margin-bottom: 0.3rem;
+        }
+        
+        .header-description {
+            color: #666;
+            font-size: 0.95rem;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .btn {
+            padding: 0.7rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .dashboard-layout {
+            display: grid;
+            grid-template-columns: 1fr 500px;
+            gap: 2rem;
+            align-items: start;
+        }
+        
+        .dashboard-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        
+        .dashboard-right {
+            position: sticky;
+            top: 2rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .quick-links {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .quick-links h2 {
+            margin-bottom: 1.5rem;
+            color: #333;
+        }
+        
+        .links-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+        
+        .link-card {
+            padding: 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #333;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        
+        .link-card:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+            transform: translateY(-2px);
+        }
+        
+        .link-card i {
+            font-size: 2rem;
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+        
+        .demo-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 3px solid #667eea;
+        }
+        
+        .demo-card h2 {
+            color: #667eea;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+        
+        .demo-description {
+            background: #f8f9ff;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid #667eea;
+        }
+        
+        .demo-description p {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 0.5rem;
+        }
+        
+        .demo-description code {
+            background: #e0e7ff;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #5568d3;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 0.8rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .demo-info {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1.5rem;
+        }
+        
+        .demo-info h3 {
+            color: #856404;
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .demo-info ol {
+            margin-left: 1.5rem;
+            color: #856404;
+        }
+        
+        .demo-info li {
+            margin-bottom: 0.3rem;
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .alert-danger {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        @media (max-width: 1024px) {
+            .dashboard-layout {
+                grid-template-columns: 1fr;
+            }
+            
+            .dashboard-right {
+                position: static;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>🛡️ Admin Dashboard</h1>
+            <p class="header-description">
+                Hello, <strong><%= adminUsername %></strong> 👋 | Manage polls and monitor security features
+            </p>
+        </div>
+        <div class="header-actions">
+            <a href="/security" class="btn btn-primary">
+                <i class="fas fa-shield-alt"></i>
+                Security Settings
+            </a>
+            <a href="/admin/logout" class="btn btn-danger">
+                <span class="btn-icon">🚪</span>
+                Sign Out
+            </a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="dashboard-layout">
+            <!-- Left Column: Stats & Quick Links -->
+            <div class="dashboard-left">
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">👥 Registered Users</div>
+                        <div class="stat-value"><%= userCount %></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">📊 Standard Poll</div>
+                        <div class="stat-value">Active</div>
+                    </div>
+                </div>
+
+                <!-- Quick Links -->
+                <div class="quick-links">
+                    <h2>⚡ Quick Actions</h2>
+                    <div class="links-grid">
+                        <a href="/security" class="link-card">
+                            <i class="fas fa-shield-alt"></i>
+                            <div>Security Settings</div>
+                        </a>
+                        <a href="/results" class="link-card">
+                            <i class="fas fa-chart-bar"></i>
+                            <div>View Results</div>
+                        </a>
+                        <a href="/" class="link-card">
+                            <i class="fas fa-vote-yea"></i>
+                            <div>Public Poll</div>
+                        </a>
+                        <a href="/dashboard" class="link-card">
+                            <i class="fas fa-user"></i>
+                            <div>User View</div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: XSS Demo (Sticky) -->
+            <div class="dashboard-right">
+                <div class="demo-card">
+                    <h2>🛡️ XSS Prevention Demo</h2>
+                    
+                    <div class="demo-description">
+                        <p><strong>Feature:</strong> Change Admin Username</p>
+                        <p>This feature demonstrates our two-layer XSS protection system. Try entering malicious code like <code>&lt;script&gt;alert('XSS')&lt;/script&gt;</code> and watch how it's safely handled!</p>
+                    </div>
+
+                    <% if (successMessage) { %>
+                        <div class="alert alert-success">
+                            <strong>✓ Success!</strong> <%= successMessage %>
+                        </div>
+                    <% } %>
+
+                    <% if (errorMessage) { %>
+                        <div class="alert alert-danger">
+                            <strong>✗ Error!</strong> <%= errorMessage %>
+                        </div>
+                    <% } %>
+
+                    <form method="POST" action="/admin/change-username">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        
+                        <div class="form-group">
+                            <label for="newUsername">
+                                <i class="fas fa-user"></i> New Username
+                            </label>
+                            <input 
+                                type="text" 
+                                id="newUsername" 
+                                name="newUsername" 
+                                placeholder="Try: <script>alert('XSS')</script>"
+                                value="<%- adminUsername %>"
+                                required
+                            >
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">
+                            <i class="fas fa-save"></i>
+                            Update & Test XSS Protection
+                        </button>
+                    </form>
+
+                    <div class="demo-info">
+                        <h3>🔍 How This Works:</h3>
+                        <ol>
+                            <li><strong>express-validator .escape()</strong> - Converts <code>&lt;</code> to <code>&amp;lt;</code> and <code>&gt;</code> to <code>&amp;gt;</code></li>
+                            <li><strong>EJS Auto-Escaping</strong> - Double-checks output is safe</li>
+                            <li><strong>Result</strong> - Malicious code displayed as harmless text</li>
+                            <li><strong>No Execution</strong> - JavaScript never runs, preventing attacks</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Secure Voting App</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+<body>
+    <div class="auth-wrapper">
+        <div class="auth-box">
+            <div class="logo"><i class="fas fa-shield-alt"></i> Secure Voting App</div>
+            <h1>Admin Portal</h1>
+            <p class="sub-heading">Admin access only. Please log in with admin credentials.</p>
+            <% if (typeof errorMessage !== 'undefined' && errorMessage) { %>
+                <div class="error-message"><%= errorMessage %></div>
+            <% } %>
+            <form action="/admin-login" method="POST">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <div class="form-group">
+                    <label for="username">ADMIN USERNAME</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-user-shield"></i>
+                        <input type="text" id="username" name="username" placeholder="Enter admin username" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="password">ADMIN PASSWORD</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-key"></i>
+                        <input type="password" id="password" name="password" placeholder="Enter admin password" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn">Login as Admin</button>
+            </form>
+            <div class="auth-link"><a href="/login">Back to User Login</a></div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<%- include('partials/header') %>
+
+<div class="main-container">
+    <div class="page-header">
+        <h1>🔐 Security Features</h1>
+        <p>Learn about our 9-layer security implementation</p>
+    </div>
+
+    <div class="security-features">
+        <div class="feature-card">
+            <div class="feature-icon">🛡️</div>
+            <h3>1. Helmet Security Headers</h3>
+            <p>HTTP security headers protect against common web vulnerabilities including XSS, clickjacking, and MIME-type sniffing.</p>
+            <div class="code-snippet">
+                <code>X-Content-Type-Options: nosniff<br>
+                X-Frame-Options: DENY<br>
+                X-XSS-Protection: 1; mode=block</code>
+            </div>
+        </div>
+
+        <div class="feature-card">
+            <div class="feature-icon">🔒</div>
+            <h3>2. Password Hashing (bcrypt)</h3>
+            <p>All passwords are hashed using bcrypt with 10 salt rounds. Passwords are never stored in plain text.</p>
+            <div class="code-snippet">
+                <code>const hash = await bcrypt.hash(password, 10);<br>
+                const valid = await bcrypt.compare(password, hash);</code>
+            </div>
+        </div>
+
+        <div class="feature-card">
+            <div class="feature-icon">🎫</div>
+            <h3>3. CSRF Protection</h3>
+            <p>Cross-Site Request Forgery protection using tokens. Every form submission requires a valid CSRF token.</p>
+            <div class="code-snippet">
+                <code>&lt;input type="hidden" name="_csrf" value="&lt;%= csrfToken %&gt;"&gt;</code>
+            </div>
+        </div>
+
+        <div class="feature-card">
+            <div class="feature-icon">⏱️</div>
+            <h3>4. Rate Limiting</h3>
+            <p>Prevents brute-force attacks by limiting login attempts to 5 per 15 minutes per IP address.</p>
+            <div class="code-snippet">
+                <code>windowMs: 15 * 60 * 1000<br>
+                max: 5 requests per window</code>
+            </div>
+        </div>
+
+        <div class="feature-card">
+            <div class="feature-icon">🍪</div>
+            <h3>5. Secure Session Management</h3>
+            <p>Sessions use secure cookies with httpOnly, secure, and sameSite flags to prevent session hijacking.</p>
+            <div class="code-snippet">
+                <code>httpOnly: true<br>
+                secure: true (production)<br>
+                sameSite: 'strict'</code>
+            </div>
+        </div>
+
+        <div class="feature-card">
+            <div class="feature-icon">✅</div>
+            <h3>6. Input Validation</h3>
+            <p>All user inputs are validated and sanitized using express-validator to prevent injection attacks.</p>
+            <div class="code-snippet">
+                <code>body('username').trim().isLength({min: 3})<br>
+                body('password').isLength({min: 8})</code>
+            </div>
+        </div>
+
+        <div class="feature-card">
+            <div class="feature-icon">🎭</div>
+            <h3>7. Role-Based Access Control</h3>
+            <p>Separate authentication for users and administrators with role-specific permissions.</p>
+            <div class="code-snippet">
+                <code>if (!req.session.isAdmin) {<br>
+                &nbsp;&nbsp;return res.status(403).send('Forbidden');<br>
+                }</code>
+            </div>
+        </div>
+
+        <div class="feature-card">
+            <div class="feature-icon">🚫</div>
+            <h3>8. Vote Duplication Prevention</h3>
+            <p>Cryptographic tracking ensures one vote per user per poll using unique identifiers.</p>
+            <div class="code-snippet">
+                <code>voteKey = `${userId}-${pollId}-${option}`<br>
+                Prevents duplicate submissions</code>
+            </div>
+        </div>
+
+        <div class="feature-card">
+            <div class="feature-icon">��</div>
+            <h3>9. Enhanced Password Validation</h3>
+            <p>Passwords must be 8+ characters with uppercase, lowercase, number, and special character.</p>
+            <div class="code-snippet">
+                <code>/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/</code>
+            </div>
+        </div>
+    </div>
+
+    <div class="security-footer">
+        <a href="/dashboard" class="btn btn-primary">← Back to Dashboard</a>
+        <a href="/" class="btn btn-secondary">Go to Voting</a>
+    </div>
+</div>
+
+<%- include('partials/footer') %>

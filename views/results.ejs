@@ -1,0 +1,41 @@
+<%- include('partials/header', { title: 'Results', activePage: 'results' }) %>
+
+<h1 class="page-title">Poll Results</h1>
+
+<% if (poll) { %>
+    <div class="results-card">
+        <h2><%= poll.question %></h2>
+        
+        <% 
+            const totalVotes = Object.values(results).reduce((sum, count) => sum + count, 0);
+        %>
+        
+        <% poll.options.forEach((option, index) => { %>
+            <% 
+                const votes = results[index] || 0;
+                const percentage = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+            %>
+            <div class="poll-option">
+                <div class="option-label">
+                    <span><%= option %></span>
+                    <span><%= votes %> votes (<%= percentage %>%)</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: <%= percentage %>%">
+                        <%= percentage > 10 ? percentage + '%' : '' %>
+                    </div>
+                </div>
+            </div>
+        <% }) %>
+        
+        <p style="margin-top: 2rem; text-align: center; color: #6c757d;">
+            Total Votes: <%= totalVotes %>
+        </p>
+    </div>
+<% } else { %>
+    <div class="results-card">
+        <p>No poll results available.</p>
+    </div>
+<% } %>
+
+<%- include('partials/footer') %>

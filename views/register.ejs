@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Secure Voting App</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+<body>
+    <div class="auth-wrapper">
+        <div class="auth-box">
+            <div class="logo"><i class="fas fa-vote-yea"></i> Secure Voting App</div>
+            <h1>Register</h1>
+            <p class="sub-heading">Create your account to start voting.</p>
+            
+            <% if (typeof errorMessage !== 'undefined' && errorMessage) { %>
+                <div class="error-message"><%= errorMessage %></div>
+            <% } %>
+            
+            <form action="/register" method="POST">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                
+                <div class="form-group">
+                    <label for="username">Username (minimum 3 characters)</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password (minimum 8 characters)</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn">Register</button>
+            </form>
+            
+            <p class="auth-link">Already have an account? <a href="/login">Login here</a></p>
+        </div>
+    </div>
+</body>
+</html>
