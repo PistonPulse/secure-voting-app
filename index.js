@@ -51,22 +51,51 @@ app.use(session({
     }
 }));
 
+// General rate limiter for all routes (excluding static files)
 const generalLimiter = rateLimit({
-    windowMs: 30 * 1000,
-    max: 10,
+    windowMs: 30 * 1000, // 30 seconds
+    max: 10, // 10 requests per 30 seconds
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => {
+        // Skip rate limiting for static files
+        return req.path.startsWith('/css') || 
+               req.path.startsWith('/js') || 
+               req.path.startsWith('/images') ||
+               req.path.endsWith('.css') ||
+               req.path.endsWith('.js') ||
+               req.path.endsWith('.png') ||
+               req.path.endsWith('.jpg') ||
+               req.path.endsWith('.ico');
+    },
     handler: (req, res) => {
         res.status(429).render('error', {
             session: req.session,
             csrfToken: req.csrfToken ? req.csrfToken() : '',
             errorTitle: 'Rate Limit Exceeded',
-            errorMessage: 'Too many requests, please try again after 30 seconds.'
+            errorMessage: 'Too many requests. Please try again after 30 seconds.'
         });
     }
 });
 
 app.use(generalLimiter);
+
+// Stricter rate limiter for authentication routes
+const authLimiter = rateLimit({
+    windowMs: 30 * 1000, // 30 seconds
+    max: 10, // 10 attempts per 30 seconds
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: true, // Don't count successful logins
+    handler: (req, res) => {
+        res.status(429).render('error', {
+            session: req.session,
+            csrfToken: req.csrfToken ? req.csrfToken() : '',
+            errorTitle: 'Too Many Attempts',
+            errorMessage: 'Too many login attempts. Please try again after 30 seconds.'
+        });
+    }
+});
 
 const csrfProtection = csrf({ cookie: true });
 
@@ -150,6 +179,7 @@ app.get('/register', csrfProtection, (req, res) => {
 });
 
 app.post('/register', 
+    authLimiter,
     csrfProtection,
     [
         // --- New, Stronger Username Rules ---
@@ -225,6 +255,7 @@ app.get('/login', csrfProtection, (req, res) => {
 });
 
 app.post('/login', 
+    authLimiter,
     csrfProtection,
     [
         body('username')
@@ -311,9 +342,11 @@ app.get('/vote', isAuthenticated, csrfProtection, (req, res) => {
     }
 
     const poll = polls[0]; // Single standard poll
-    const userVoteRecord = votes[poll.id.toString()]?.find(userId => userId === req.session.userId);
+    const pollVotes = votes[poll.id.toString()] || [];
+    const userVoteRecord = pollVotes.find(v => v.userId === req.session.userId);
     const hasVoted = !!userVoteRecord || (currentUser && currentUser.lastVote === poll.id);
-    const userVote = hasVoted && currentUser ? poll.options[currentUser.lastVote] : null;
+    const userVote = userVoteRecord ? poll.options[userVoteRecord.option] : 
+                     (currentUser && currentUser.lastVoteOption !== undefined) ? poll.options[currentUser.lastVoteOption] : null;
 
     res.render('index', { 
         session: req.session,
@@ -327,8 +360,10 @@ app.get('/vote', isAuthenticated, csrfProtection, (req, res) => {
 
 app.post('/vote', isAuthenticated, csrfProtection, (req, res) => {
     try {
-        const pollId = parseInt(sanitizeInput(req.body.pollId));
-        const optionIndex = parseInt(sanitizeInput(req.body.option));
+        const pollId = parseInt(req.body.pollId);
+        const optionValue = req.body.option;
+        
+        console.log('Vote data received:', { pollId, optionValue, body: req.body });
 
         const users = readJSON(USERS_FILE);
         const votes = readJSON(VOTES_FILE);
@@ -341,6 +376,23 @@ app.post('/vote', isAuthenticated, csrfProtection, (req, res) => {
                 csrfToken: req.csrfToken(),
                 errorTitle: 'Invalid Poll',
                 errorMessage: 'The poll you are trying to vote on does not exist.'
+            });
+        }
+
+        // Find option index - handle both number index and option name
+        let optionIndex;
+        if (!isNaN(parseInt(optionValue))) {
+            optionIndex = parseInt(optionValue);
+        } else {
+            optionIndex = poll.options.indexOf(optionValue);
+        }
+
+        if (optionIndex < 0 || optionIndex >= poll.options.length) {
+            return res.status(400).render('error', {
+                session: req.session,
+                csrfToken: req.csrfToken(),
+                errorTitle: 'Invalid Option',
+                errorMessage: 'The option you selected is not valid.'
             });
         }
 
@@ -360,7 +412,8 @@ app.post('/vote', isAuthenticated, csrfProtection, (req, res) => {
         }
 
         // Check for duplicate
-        if (votes[pollId.toString()].includes(req.session.userId)) {
+        const alreadyVoted = votes[pollId.toString()].find(v => v.userId === req.session.userId);
+        if (alreadyVoted) {
             return res.status(400).render('error', {
                 session: req.session,
                 csrfToken: req.csrfToken(),
@@ -369,20 +422,27 @@ app.post('/vote', isAuthenticated, csrfProtection, (req, res) => {
             });
         }
 
-        // Record vote
-        votes[pollId.toString()].push(req.session.userId);
+        // Record vote with userId and option
+        votes[pollId.toString()].push({
+            userId: req.session.userId,
+            option: optionIndex,
+            timestamp: new Date().toISOString()
+        });
         writeJSON(VOTES_FILE, votes);
+        
+        console.log('Vote recorded:', votes[pollId.toString()]);
 
-        // Update user's lastVote
+        // Update user's lastVote with pollId
         if (currentUser) {
-            currentUser.lastVote = optionIndex;
+            currentUser.lastVote = pollId;
+            currentUser.lastVoteOption = optionIndex;
             writeJSON(USERS_FILE, users);
         }
 
         // Log vote
-        logSecurityEvent(`Vote cast by user: ${req.session.username} for poll: ${pollId}`);
+        logSecurityEvent(`Vote cast by user: ${req.session.username} for poll: ${pollId}, option: ${poll.options[optionIndex]}`);
 
-        res.redirect('/results');
+        res.redirect('/vote');
     } catch (error) {
         console.error('Voting error:', error);
         res.status(500).render('error', {
@@ -397,7 +457,6 @@ app.post('/vote', isAuthenticated, csrfProtection, (req, res) => {
 app.get('/results', isAuthenticated, csrfProtection, (req, res) => {
     const polls = readJSON(POLLS_FILE);
     const votes = readJSON(VOTES_FILE);
-    const users = readJSON(USERS_FILE);
 
     if (polls.length === 0) {
         return res.render('results', {
@@ -411,11 +470,15 @@ app.get('/results', isAuthenticated, csrfProtection, (req, res) => {
     const poll = polls[0]; // Single standard poll
     const pollVotes = votes[poll.id.toString()] || [];
     
-    // Count votes per option
+    // Count votes per option from the votes array
     const results = {};
-    users.forEach(user => {
-        if (user.lastVote !== null && user.lastVote !== undefined && pollVotes.includes(user.id)) {
-            results[user.lastVote] = (results[user.lastVote] || 0) + 1;
+    poll.options.forEach((_, index) => {
+        results[index] = 0;
+    });
+    
+    pollVotes.forEach(vote => {
+        if (vote.option !== undefined && vote.option !== null) {
+            results[vote.option] = (results[vote.option] || 0) + 1;
         }
     });
 
@@ -434,7 +497,7 @@ app.get('/admin-login', csrfProtection, (req, res) => {
     });
 });
 
-app.post('/admin-login', csrfProtection, [
+app.post('/admin-login', authLimiter, csrfProtection, [
     body('username').trim().escape(),
     body('password').trim()
 ], async (req, res) => {

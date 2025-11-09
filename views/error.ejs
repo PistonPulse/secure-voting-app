@@ -1,9 +1,238 @@
-<%- include('partials/header', { title: errorTitle || 'Error' }) %>
+<%- include('partials/header') %><%- include('partials/header') %><%- include('partials/header') %>
+
+
 
 <div class="error-page">
-    <h1><%= typeof errorTitle !== 'undefined' ? errorTitle : 'Error' %></h1>
-    <p><%= typeof errorMessage !== 'undefined' ? errorMessage : 'An error occurred' %></p>
-    <a href="/" class="btn">Go Home</a>
+
+    <div class="container">
+
+        <div class="error-content"><div class="error-container"><div class="error-page">
+
+            <div class="error-icon">
+
+                <% if (typeof errorTitle !== 'undefined' && errorTitle.includes('404')) { %>    <div class="error-card">    <div class="container">
+
+                    🔍
+
+                <% } else if (typeof errorTitle !== 'undefined' && errorTitle.includes('403')) { %>        <div class="error-icon">⚠️</div>        <div class="error-content">
+
+                    🛡️
+
+                <% } else if (typeof errorTitle !== 'undefined' && errorTitle.includes('429')) { %>                    <div class="error-icon">
+
+                    ⏱️
+
+                <% } else { %>        <div class="error-header">                <% if (error.status === 404) { %>
+
+                    ⚠️
+
+                <% } %>            <span class="error-badge">ERROR</span>                    🔍
+
+            </div>
+
+                        <h1 class="error-title"><%= title %></h1>                <% } else if (error.status === 403) { %>
+
+            <div style="margin: 1.5rem 0;">
+
+                <span style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 0.6rem 1.2rem; border-radius: 8px; font-weight: bold; font-size: 0.95rem; box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3); display: inline-block;">        </div>                    🛡️
+
+                    🚨 ERROR
+
+                </span>                <% } else if (error.status === 429) { %>
+
+            </div>
+
+                    <% if (typeof message !== 'undefined' && message) { %>                    ⏱️
+
+            <h1 style="margin-top: 1.5rem; font-size: 2rem;">
+
+                <%= typeof errorTitle !== 'undefined' ? errorTitle : 'An Error Occurred' %>            <div class="error-section what-happened">                <% } else if (error.status === 400) { %>
+
+            </h1>
+
+                            <h2>What Happened?</h2>                    ⚠️
+
+            <p class="error-message" style="font-size: 1.15rem; margin: 1.5rem 0; color: #555;">
+
+                <%= typeof errorMessage !== 'undefined' ? errorMessage : 'Something went wrong.' %>                <p><%= message %></p>                <% } else { %>
+
+            </p>
+
+                        </div>                    ⚠️
+
+            <div class="btn-group justify-center" style="margin-top: 2.5rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+
+                <a href="/" class="btn btn-primary" style="padding: 0.8rem 2rem; text-decoration: none;">🏠 Go to Homepage</a>        <% } %>                <% } %>
+
+                <button onclick="window.history.back()" class="btn btn-secondary" style="padding: 0.8rem 2rem;">← Go Back</button>
+
+            </div>            </div>
+
+        </div>
+
+    </div>        <% if (typeof details !== 'undefined' && details) { %>            
+
 </div>
+
+            <div class="error-section what-to-do">            <!-- Error Status Badge for Visual Clarity -->
+
+<%- include('partials/footer') %>
+
+                <h2>What You Can Do:</h2>            <div style="margin: 1.5rem 0;">
+
+                <p><%= details %></p>                <span style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 0.6rem 1.2rem; border-radius: 8px; font-weight: bold; font-size: 0.95rem; box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3); display: inline-block;">
+
+            </div>                    🚨 ERROR <%= error.status || 500 %>
+
+        <% } %>                </span>
+
+            </div>
+
+        <div class="error-actions">            
+
+            <a href="/" class="btn btn-primary">🏠 Go Home</a>            <h1 style="margin-top: 1.5rem; font-size: 2rem;"><%= title %></h1>
+
+            <% if (isAuthenticated) { %>            <p class="error-message" style="font-size: 1.15rem; margin: 1.5rem 0; color: #555;"><%= message %></p>
+
+                <a href="/dashboard" class="btn btn-secondary">📊 Dashboard</a>            
+
+            <% } else { %>            <% if (error.details) { %>
+
+                <a href="/login" class="btn btn-secondary">🔐 Login</a>                <div class="error-details-box" style="background: linear-gradient(135deg, #fff3cd 0%, #fff8dc 100%); border-left: 5px solid #ffc107; padding: 1.8rem; margin: 2rem 0; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.08);">
+
+            <% } %>                    <h3 style="margin-top: 0; margin-bottom: 1rem; color: #856404; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+
+        </div>                        <span style="font-size: 1.3rem;">📋</span> What Happened
+
+                    </h3>
+
+        <% if (typeof statusCode !== 'undefined') { %>                    <p style="margin-bottom: 0; color: #856404; line-height: 1.6;"><%= error.details %></p>
+
+            <div class="error-footer">                </div>
+
+                <small>Error Code: <%= statusCode %></small>            <% } %>
+
+            </div>            
+
+        <% } %>            <% if (error.suggestion) { %>
+
+    </div>                <div class="error-suggestion" style="background: linear-gradient(135deg, #d1ecf1 0%, #d4edda 100%); border-left: 5px solid #17a2b8; padding: 1.8rem; margin: 2rem 0; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.08);">
+
+</div>                    <h3 style="margin-top: 0; margin-bottom: 1rem; color: #0c5460; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+
+                        <span style="font-size: 1.3rem;">💡</span> What You Can Do
+
+<style>                    </h3>
+
+.error-container {                    <p style="margin-bottom: 0; color: #0c5460; line-height: 1.6;"><%= error.suggestion %></p>
+
+    min-height: 60vh;                </div>
+
+    display: flex;            <% } %>
+
+    align-items: center;            
+
+    justify-content: center;            <% if (error.status === 404) { %>
+
+    padding: 2rem;                <p class="help-text" style="color: #777; font-style: italic; margin: 1.5rem 0;">The page you're looking for might have been removed, had its name changed, or is temporarily unavailable.</p>
+
+}            <% } %>
+
+            
+
+.error-card {            <% if (process.env.NODE_ENV === 'development' && error.stack) { %>
+
+    background: white;                <details class="error-stack" style="margin: 2rem 0; padding: 1rem; background: #f8f9fa; border-radius: 5px;">
+
+    border-radius: 12px;                    <summary style="cursor: pointer; font-weight: bold; color: #495057;">Technical Details (Development Mode)</summary>
+
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);                    <pre style="margin-top: 1rem; padding: 1rem; background: #343a40; color: #f8f9fa; border-radius: 5px; overflow-x: auto;"><code><%= error.stack %></code></pre>
+
+    padding: 3rem;                </details>
+
+    max-width: 600px;            <% } %>
+
+    width: 100%;            
+
+    text-align: center;            <div class="btn-group justify-center" style="margin-top: 2.5rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+
+}                <a href="/" class="btn btn-primary" style="padding: 0.8rem 2rem; text-decoration: none;">🏠 Go to Homepage</a>
+
+                <button onclick="window.history.back()" class="btn btn-secondary" style="padding: 0.8rem 2rem;">← Go Back</button>
+
+.error-icon {            </div>
+
+    font-size: 4rem;        </div>
+
+    margin-bottom: 1rem;    </div>
+
+}</div>
+
+
+
+.error-header {<%- include('partials/footer') %>
+
+    margin-bottom: 2rem;
+}
+
+.error-badge {
+    display: inline-block;
+    background: #dc3545;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.error-title {
+    color: #2c3e50;
+    font-size: 2rem;
+    margin: 0.5rem 0;
+}
+
+.error-section {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    border-radius: 8px;
+    text-align: left;
+}
+
+.what-happened {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.what-to-do {
+    background: #d1ecf1;
+    border-left: 4px solid #17a2b8;
+}
+
+.error-section h2 {
+    color: #2c3e50;
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+}
+
+.error-section p {
+    color: #555;
+    line-height: 1.6;
+}
+
+.error-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+}
+
+.error-footer {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #ddd;
+    color: #888;
+}
+</style>
 
 <%- include('partials/footer') %>
