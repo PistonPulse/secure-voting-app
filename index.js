@@ -53,28 +53,58 @@ app.use(session({
 
 // General rate limiter for all routes (excluding static files)
 const generalLimiter = rateLimit({
-    windowMs: 30 * 1000, // 30 seconds
-    max: 10, // 10 requests per 30 seconds
+    windowMs: 15 * 1000, // 15 seconds
+    max: 30, // 30 requests per 15 seconds (increased to account for multiple asset requests per page)
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => {
-        // Skip rate limiting for static files
+        // Skip rate limiting for static files and assets
         return req.path.startsWith('/css') || 
                req.path.startsWith('/js') || 
                req.path.startsWith('/images') ||
+               req.path.startsWith('/fonts') ||
+               req.path.includes('favicon') ||
+               req.path.includes('.well-known') ||
                req.path.endsWith('.css') ||
                req.path.endsWith('.js') ||
                req.path.endsWith('.png') ||
                req.path.endsWith('.jpg') ||
+               req.path.endsWith('.jpeg') ||
+               req.path.endsWith('.gif') ||
+               req.path.endsWith('.svg') ||
+               req.path.endsWith('.woff') ||
+               req.path.endsWith('.woff2') ||
+               req.path.endsWith('.ttf') ||
                req.path.endsWith('.ico');
     },
     handler: (req, res) => {
-        res.status(429).render('error', {
-            session: req.session,
-            csrfToken: req.csrfToken ? req.csrfToken() : '',
-            errorTitle: 'Rate Limit Exceeded',
-            errorMessage: 'Too many requests. Please try again after 30 seconds.'
-        });
+        console.log('⚠️ RATE LIMIT EXCEEDED for IP:', req.ip, 'Path:', req.path);
+        res.status(429).send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Rate Limit Exceeded</title>
+                <style>
+                    body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
+                    .error-container { background: white; padding: 3rem; border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.2); max-width: 500px; text-align: center; }
+                    .error-badge { background: #ef4444; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; display: inline-block; font-weight: bold; margin-bottom: 1rem; }
+                    h1 { color: #1f2937; margin: 1rem 0; }
+                    p { color: #6b7280; line-height: 1.6; margin: 1rem 0; }
+                    .back-link { display: inline-block; margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #667eea, #764ba2); color: white; text-decoration: none; border-radius: 0.5rem; font-weight: 500; }
+                    .back-link:hover { opacity: 0.9; }
+                </style>
+            </head>
+            <body>
+                <div class="error-container">
+                    <div class="error-badge">ERROR 429</div>
+                    <h1>Rate Limit Exceeded</h1>
+                    <p>Too many requests from your IP address. Please wait 15 seconds before trying again.</p>
+                    <p style="font-size: 0.9rem; color: #9ca3af;">This security feature protects against automated attacks and ensures fair access for all users.</p>
+                    <a href="/" class="back-link">← Back to Home</a>
+                </div>
+            </body>
+            </html>
+        `);
     }
 });
 
@@ -82,18 +112,39 @@ app.use(generalLimiter);
 
 // Stricter rate limiter for authentication routes
 const authLimiter = rateLimit({
-    windowMs: 30 * 1000, // 30 seconds
-    max: 10, // 10 attempts per 30 seconds
+    windowMs: 15 * 1000, // 15 seconds
+    max: 10, // 10 attempts per 15 seconds
     standardHeaders: true,
     legacyHeaders: false,
     skipSuccessfulRequests: true, // Don't count successful logins
     handler: (req, res) => {
-        res.status(429).render('error', {
-            session: req.session,
-            csrfToken: req.csrfToken ? req.csrfToken() : '',
-            errorTitle: 'Too Many Attempts',
-            errorMessage: 'Too many login attempts. Please try again after 30 seconds.'
-        });
+        console.log('⚠️ AUTH RATE LIMIT EXCEEDED for IP:', req.ip, 'Path:', req.path);
+        res.status(429).send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Too Many Login Attempts</title>
+                <style>
+                    body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
+                    .error-container { background: white; padding: 3rem; border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.2); max-width: 500px; text-align: center; }
+                    .error-badge { background: #f59e0b; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; display: inline-block; font-weight: bold; margin-bottom: 1rem; }
+                    h1 { color: #1f2937; margin: 1rem 0; }
+                    p { color: #6b7280; line-height: 1.6; margin: 1rem 0; }
+                    .back-link { display: inline-block; margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #667eea, #764ba2); color: white; text-decoration: none; border-radius: 0.5rem; font-weight: 500; }
+                    .back-link:hover { opacity: 0.9; }
+                </style>
+            </head>
+            <body>
+                <div class="error-container">
+                    <div class="error-badge">TOO MANY ATTEMPTS</div>
+                    <h1>Login Rate Limit Exceeded</h1>
+                    <p>Too many login attempts. Please wait 15 seconds before trying again.</p>
+                    <p style="font-size: 0.9rem; color: #9ca3af;">This prevents brute force attacks and protects your account.</p>
+                    <a href="/login" class="back-link">← Back to Login</a>
+                </div>
+            </body>
+            </html>
+        `);
     }
 });
 
