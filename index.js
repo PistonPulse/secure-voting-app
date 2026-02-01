@@ -11,7 +11,7 @@ const morgan = require('morgan');
 const { body, validationResult } = require('express-validator');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Create logs directory if it doesn't exist
 const logsDir = path.join(__dirname, 'logs');
@@ -741,7 +741,7 @@ app.use((req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on port ${PORT}`);
     console.log('Security features enabled:');
     console.log('✓ Helmet security headers');
     console.log('✓ Session management with HttpOnly cookies');
