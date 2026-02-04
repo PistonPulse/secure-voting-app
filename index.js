@@ -30,9 +30,18 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
             scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-            imgSrc: ["'self'", "data:", "https:", "https://images.unsplash.com"]
+            imgSrc: ["'self'", "data:", "https:", "https://images.unsplash.com"],
+            upgradeInsecureRequests: [],  // Upgrades HTTP to HTTPS (Mixed Content Protection)
+            blockAllMixedContent: []      // Blocks all mixed content
         }
-    }
+    },
+    // Additional security headers for mixed content protection
+    hsts: {
+        maxAge: 31536000,           // 1 year
+        includeSubDomains: true,
+        preload: true
+    },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 }));
 
 app.use(express.urlencoded({ extended: true }));
@@ -182,9 +191,57 @@ function writeJSON(filepath, data) {
     }
 }
 
+// SQL Injection Detection Patterns
+const SQL_INJECTION_PATTERNS = [
+    /('|")\s*(OR|AND)\s*('|")?[\d\w]*('|")?\s*=\s*('|")?[\d\w]*('|")?/i,  // ' OR '1'='1, " AND "1"="1
+    /('|")\s*(OR|AND)\s+\d+\s*=\s*\d+/i,                                    // ' OR 1=1
+    /('|")\s*;\s*(DROP|DELETE|UPDATE|INSERT|SELECT|UNION)/i,               // '; DROP TABLE
+    /UNION\s+(ALL\s+)?SELECT/i,                                             // UNION SELECT
+    /SELECT\s+.*\s+FROM/i,                                                  // SELECT * FROM
+    /INSERT\s+INTO/i,                                                       // INSERT INTO
+    /DELETE\s+FROM/i,                                                       // DELETE FROM
+    /UPDATE\s+.*\s+SET/i,                                                   // UPDATE table SET
+    /DROP\s+(TABLE|DATABASE)/i,                                             // DROP TABLE/DATABASE
+    /--\s*$/,                                                               // SQL comment at end
+    /\/\*.*\*\//,                                                           // SQL block comment
+    /EXEC(\s+|\()/i,                                                        // EXEC command
+    /xp_/i,                                                                 // SQL Server extended procedures
+    /0x[0-9a-fA-F]+/,                                                       // Hex encoded values
+    /CHAR\s*\(/i,                                                           // CHAR() function
+    /CONCAT\s*\(/i,                                                         // CONCAT() function
+    /HAVING\s+/i,                                                           // HAVING clause injection
+    /GROUP\s+BY/i,                                                          // GROUP BY injection
+    /ORDER\s+BY\s+\d+/i,                                                    // ORDER BY number (column enumeration)
+    /WAITFOR\s+DELAY/i,                                                     // Time-based injection
+    /BENCHMARK\s*\(/i,                                                      // MySQL time-based injection
+    /SLEEP\s*\(/i,                                                          // MySQL SLEEP injection
+];
+
+function detectSQLInjection(input) {
+    if (typeof input !== 'string') return false;
+    
+    for (const pattern of SQL_INJECTION_PATTERNS) {
+        if (pattern.test(input)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function sanitizeInput(input) {
     if (typeof input !== 'string') return '';
-    return input.trim().replace(/[<>]/g, '');
+    
+    // Check for SQL injection attempts
+    if (detectSQLInjection(input)) {
+        logSecurityEvent(`SQL Injection attempt detected: "${input}"`);
+        return ''; // Return empty string for malicious input
+    }
+    
+    // Remove dangerous characters
+    return input
+        .trim()
+        .replace(/[<>]/g, '')           // XSS prevention
+        .replace(/['";\\]/g, '');       // SQL special characters
 }
 
 function logSecurityEvent(message) {
@@ -208,6 +265,25 @@ function isAdmin(req, res, next) {
         res.redirect('/admin-login');
     }
 }
+
+// SQL Injection Protection Middleware
+function sqlInjectionProtection(req, res, next) {
+    const fieldsToCheck = { ...req.body, ...req.query, ...req.params };
+    
+    for (const [key, value] of Object.entries(fieldsToCheck)) {
+        if (typeof value === 'string' && detectSQLInjection(value)) {
+            logSecurityEvent(`SQL Injection blocked - Field: "${key}", Value: "${value}", IP: ${req.ip}`);
+            return res.status(400).render('error', {
+                errorTitle: 'Security Alert',
+                errorMessage: 'Potentially malicious input detected. Your request has been blocked and logged.'
+            });
+        }
+    }
+    next();
+}
+
+// Apply SQL injection protection to all POST requests
+app.use(sqlInjectionProtection);
 
 // Routes
 
@@ -233,11 +309,11 @@ app.post('/register',
     authLimiter,
     csrfProtection,
     [
-        // --- New, Stronger Username Rules ---
+        // --- Username Rules: alphanumeric only, 5-15 characters ---
         body('username')
             .trim()
-            .isLength({ min: 3 }).withMessage('Username must be at least 3 characters')
-            .isAlphanumeric().withMessage('Username must only contain letters and numbers (no spaces or symbols)')
+            .isLength({ min: 5, max: 15 }).withMessage('Username must be between 5 and 15 characters')
+            .isAlphanumeric().withMessage('Username must only contain letters and numbers (no spaces or special characters)')
             .custom(value => {
                 if (value.toLowerCase() === 'admin') {
                     throw new Error('The username "admin" is not allowed');
@@ -245,8 +321,19 @@ app.post('/register',
                 return true;
             }),
         
-        // --- Password Rule ---
-        body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+        // --- Email Rule ---
+        body('email')
+            .trim()
+            .isEmail().withMessage('Please enter a valid email address')
+            .normalizeEmail(),
+        
+        // --- Password Rules: 8-12 chars, uppercase, lowercase, number, special char ---
+        body('password')
+            .isLength({ min: 8, max: 12 }).withMessage('Password must be between 8 and 12 characters')
+            .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
+            .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+            .matches(/[0-9]/).withMessage('Password must contain at least one number')
+            .matches(/[@$!%*?&#^()_+=\[\]{};':"\\|,.<>\/~`-]/).withMessage('Password must contain at least one special character')
     ],
     async (req, res) => {
     try {
@@ -260,6 +347,7 @@ app.post('/register',
         }
 
         const username = sanitizeInput(req.body.username);
+        const email = req.body.email.trim().toLowerCase();
         const password = req.body.password;
 
         const users = readJSON(USERS_FILE);
@@ -271,10 +359,18 @@ app.post('/register',
             });
         }
 
+        if (users.find(u => u.email === email)) {
+            return res.render('register', { 
+                errorMessage: 'Email already registered.',
+                csrfToken: req.csrfToken()
+            });
+        }
+
         const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = {
             id: Date.now().toString(),
             username,
+            email,
             passwordHash: hashedPassword,
             lastVote: null
         };
