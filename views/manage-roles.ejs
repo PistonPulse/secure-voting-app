@@ -1,0 +1,100 @@
+<%- include('partials/header') %>
+
+<div class="container">
+    <div class="form-container">
+        <h2>👥 Manage User Roles</h2>
+        
+        <% if (successMessage) { %>
+            <div style="background: #d1fae5; border: 1px solid #10b981; color: #065f46; padding: 12px; border-radius: 8px; margin-bottom: 1rem;">
+                ✓ <%= successMessage %>
+            </div>
+        <% } %>
+        
+        <% if (errorMessage) { %>
+            <div style="background: #fee2e2; border: 1px solid #ef4444; color: #991b1b; padding: 12px; border-radius: 8px; margin-bottom: 1rem;">
+                ✗ <%= errorMessage %>
+            </div>
+        <% } %>
+        
+        <div style="margin-top: 2rem;">
+            <h3>Role Descriptions:</h3>
+            <ul style="line-height: 1.8; color: #666; margin: 1rem 0 2rem 1.5rem;">
+                <li><strong>Guest:</strong> Unauthenticated users (cannot vote)</li>
+                <li><strong>Customer:</strong> Basic authenticated users (can vote and view results)</li>
+                <li><strong>Editor:</strong> Can create, edit, and delete polls + all customer permissions</li>
+                <li><strong>Administrator:</strong> Full system access including user management</li>
+            </ul>
+        </div>
+        
+        <% if (users && users.length > 0) { %>
+            <div style="overflow-x: auto; margin-top: 2rem;">
+                <table style="width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <thead>
+                        <tr style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Username</th>
+                            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Email</th>
+                            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Current Role</th>
+                            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Email Verified</th>
+                            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Created At</th>
+                            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Change Role</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% users.forEach(user => { %>
+                            <tr style="border-bottom: 1px solid #eee;">
+                                <td style="padding: 10px; border: 1px solid #ddd; font-weight: 500;">
+                                    <%= user.username %>
+                                </td>
+                                <td style="padding: 10px; border: 1px solid #ddd;">
+                                    <%= user.email || 'N/A' %>
+                                </td>
+                                <td style="padding: 10px; border: 1px solid #ddd;">
+                                    <span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; 
+                                        background: <%= user.role === 'admin' ? '#ef4444' : user.role === 'editor' ? '#f59e0b' : '#10b981' %>; 
+                                        color: white;">
+                                        <%= user.role || 'customer' %>
+                                    </span>
+                                </td>
+                                <td style="padding: 10px; border: 1px solid #ddd;">
+                                    <% if (user.emailVerified) { %>
+                                        <span style="color: #10b981; font-weight: bold;">✓ Verified</span>
+                                    <% } else { %>
+                                        <span style="color: #f59e0b;">⚠ Not Verified</span>
+                                    <% } %>
+                                </td>
+                                <td style="padding: 10px; border: 1px solid #ddd; font-size: 12px;">
+                                    <%= user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A' %>
+                                </td>
+                                <td style="padding: 10px; border: 1px solid #ddd;">
+                                    <form method="POST" action="/admin/update-role" style="display: flex; gap: 8px; align-items: center;">
+                                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                                        <input type="hidden" name="userId" value="<%= user.id %>">
+                                        <select name="newRole" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                                            <option value="<%= roles.GUEST %>" <%= user.role === roles.GUEST ? 'selected' : '' %>>Guest</option>
+                                            <option value="<%= roles.CUSTOMER %>" <%= user.role === roles.CUSTOMER || !user.role ? 'selected' : '' %>>Customer</option>
+                                            <option value="<%= roles.EDITOR %>" <%= user.role === roles.EDITOR ? 'selected' : '' %>>Editor</option>
+                                            <option value="<%= roles.ADMINISTRATOR %>" <%= user.role === roles.ADMINISTRATOR ? 'selected' : '' %>>Administrator</option>
+                                        </select>
+                                        <button type="submit" style="padding: 6px 12px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+                                            Update
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+        <% } else { %>
+            <p style="color: #666; margin-top: 2rem;">No users found.</p>
+        <% } %>
+        
+        <div style="margin-top: 2rem;">
+            <a href="/admin" class="button" style="background: linear-gradient(135deg, #667eea, #764ba2); padding: 12px 24px; color: white; text-decoration: none; border-radius: 8px; display: inline-block;">
+                ← Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %>

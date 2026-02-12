@@ -1,0 +1,74 @@
+<%- include('partials/header') %>
+
+<div class="container">
+    <div class="form-container">
+        <h2>📊 Audit Logs</h2>
+        
+        <% if (logs && logs.length > 0) { %>
+            <div style="margin-top: 2rem;">
+                <p style="color: #666; margin-bottom: 1rem;">Showing last <%= logs.length %> events</p>
+                
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <thead>
+                            <tr style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                                <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Timestamp</th>
+                                <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Event Type</th>
+                                <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Severity</th>
+                                <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">User</th>
+                                <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">IP Address</th>
+                                <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Message</th>
+                                <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Result</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% logs.forEach(log => { %>
+                                <tr style="border-bottom: 1px solid #eee;">
+                                    <td style="padding: 10px; border: 1px solid #ddd; font-size: 12px;">
+                                        <%= new Date(log.timestamp).toLocaleString() %>
+                                    </td>
+                                    <td style="padding: 10px; border: 1px solid #ddd; font-weight: 500;">
+                                        <%= log.eventType %>
+                                    </td>
+                                    <td style="padding: 10px; border: 1px solid #ddd;">
+                                        <span style="padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; 
+                                            background: <%= log.severity === 'CRITICAL' ? '#ef4444' : log.severity === 'WARNING' ? '#f59e0b' : '#10b981' %>; 
+                                            color: white;">
+                                            <%= log.severity %>
+                                        </span>
+                                    </td>
+                                    <td style="padding: 10px; border: 1px solid #ddd;">
+                                        <%= log.username %>
+                                    </td>
+                                    <td style="padding: 10px; border: 1px solid #ddd; font-family: monospace; font-size: 12px;">
+                                        <%= log.ip %>
+                                    </td>
+                                    <td style="padding: 10px; border: 1px solid #ddd; max-width: 300px; word-wrap: break-word;">
+                                        <%= log.message %>
+                                    </td>
+                                    <td style="padding: 10px; border: 1px solid #ddd;">
+                                        <span style="padding: 4px 8px; border-radius: 4px; font-size: 11px; 
+                                            background: <%= log.result === 'success' ? '#d1fae5' : log.result === 'failure' ? '#fee2e2' : '#e5e7eb' %>; 
+                                            color: <%= log.result === 'success' ? '#065f46' : log.result === 'failure' ? '#991b1b' : '#374151' %>;">
+                                            <%= log.result %>
+                                        </span>
+                                    </td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        <% } else { %>
+            <p style="color: #666; margin-top: 2rem;">No audit logs available.</p>
+        <% } %>
+        
+        <div style="margin-top: 2rem;">
+            <a href="/admin" class="button" style="background: linear-gradient(135deg, #667eea, #764ba2); padding: 12px 24px; color: white; text-decoration: none; border-radius: 8px; display: inline-block;">
+                ← Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %>

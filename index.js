@@ -10,6 +10,25 @@ const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 const { body, validationResult } = require('express-validator');
 
+// Import RBAC and Security modules
+const { ROLES, PERMISSIONS, getDefaultRole } = require('./rbac-config');
+const { AuditLogger, AUDIT_EVENTS } = require('./audit-logger');
+const {
+    requirePermission,
+    requireRole,
+    requireEmailVerification,
+    attachUserRole,
+    secureRoute
+} = require('./security-middleware');
+const {
+    generateVerificationToken,
+    generateVerificationUrl,
+    isTokenExpired,
+    sendVerificationEmail,
+    sendWelcomeEmail,
+    isValidEmail
+} = require('./email-verification');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -18,6 +37,9 @@ const logsDir = path.join(__dirname, 'logs');
 if (!fs.existsSync(logsDir)) {
     fs.mkdirSync(logsDir);
 }
+
+// Initialize audit logger
+const auditLogger = new AuditLogger(logsDir);
 
 // Access logging
 const accessLogStream = fs.createWriteStream(path.join(logsDir, 'access.log'), { flags: 'a' });
@@ -50,15 +72,24 @@ app.use(express.static('public'));
 app.use(cookieParser());
 
 app.use(session({
-    secret: 'voting-app-secret-key-2024',
+    secret: process.env.SESSION_SECRET || 'voting-app-secret-key-2024',
     resave: false,
     saveUninitialized: false,
     cookie: {
         httpOnly: true,
         secure: false,
-        maxAge: 3600000
+        maxAge: 3600000 // 1 hour
     }
 }));
+
+// Attach audit logger to all requests
+app.use((req, res, next) => {
+    req.auditLogger = auditLogger;
+    next();
+});
+
+// Attach user role to session
+app.use(attachUserRole(readJSON, USERS_FILE));
 
 // General rate limiter for all routes (excluding static files)
 const generalLimiter = rateLimit({
@@ -244,24 +275,43 @@ function sanitizeInput(input) {
         .replace(/['";\\]/g, '');       // SQL special characters
 }
 
+// Legacy security logging function (now uses auditLogger)
 function logSecurityEvent(message) {
-    const logStream = fs.createWriteStream(path.join(logsDir, 'security.log'), { flags: 'a' });
-    logStream.write(`[${new Date().toISOString()}] ${message}\n`);
-    logStream.end();
+    auditLogger.logSecurityThreat(AUDIT_EVENTS.SQL_INJECTION_BLOCKED, {
+        message,
+        ip: 'system',
+        userAgent: 'system'
+    });
 }
 
+// Legacy middleware for backward compatibility
 function isAuthenticated(req, res, next) {
     if (req.session && req.session.userId) {
         next();
     } else {
+        auditLogger.logEvent(AUDIT_EVENTS.ACCESS_DENIED, {
+            ip: req.ip,
+            userAgent: req.get('user-agent'),
+            resource: req.path,
+            message: 'Unauthenticated user attempted to access protected resource'
+        });
         res.redirect('/login');
     }
 }
 
 function isAdmin(req, res, next) {
-    if (req.session && req.session.isAdmin) {
+    const userRole = req.session?.role || ROLES.GUEST;
+    if (req.session && (req.session.isAdmin || userRole === ROLES.ADMINISTRATOR)) {
         next();
     } else {
+        auditLogger.logEvent(AUDIT_EVENTS.ACCESS_DENIED, {
+            userId: req.session?.userId,
+            username: req.session?.username,
+            ip: req.ip,
+            userAgent: req.get('user-agent'),
+            resource: req.path,
+            message: 'Non-admin user attempted to access admin resource'
+        });
         res.redirect('/admin-login');
     }
 }
@@ -298,9 +348,158 @@ app.get('/', (req, res) => {
     }
 });
 
+// Email Verification Route
+app.get('/verify-email', async (req, res) => {
+    try {
+        const token = req.query.token;
+        
+        if (!token) {
+            return res.status(400).render('error', {
+                session: req.session,
+                csrfToken: '',
+                errorTitle: 'Invalid Verification Link',
+                errorMessage: 'The verification link is invalid or missing.'
+            });
+        }
+        
+        const users = readJSON(USERS_FILE);
+        const user = users.find(u => u.verificationToken === token);
+        
+        if (!user) {
+            return res.status(400).render('error', {
+                session: req.session,
+                csrfToken: '',
+                errorTitle: 'Invalid Verification Token',
+                errorMessage: 'The verification token is invalid or has already been used.'
+            });
+        }
+        
+        if (user.emailVerified) {
+            return res.render('error', {
+                session: req.session,
+                csrfToken: '',
+                errorTitle: 'Already Verified',
+                errorMessage: 'Your email has already been verified. You can log in now.'
+            });
+        }
+        
+        // Check if token is expired
+        if (isTokenExpired(user.verificationTokenCreatedAt)) {
+            return res.status(400).render('error', {
+                session: req.session,
+                csrfToken: '',
+                errorTitle: 'Token Expired',
+                errorMessage: 'The verification link has expired. Please request a new verification email.'
+            });
+        }
+        
+        // Verify the email
+        user.emailVerified = true;
+        user.verificationToken = null;
+        writeJSON(USERS_FILE, users);
+        
+        // Update session if this is the current user
+        if (req.session && req.session.userId === user.id) {
+            req.session.emailVerified = true;
+        }
+        
+        // Log the verification
+        auditLogger.logEvent(AUDIT_EVENTS.EMAIL_VERIFIED, {
+            userId: user.id,
+            username: user.username,
+            ip: req.ip,
+            userAgent: req.get('user-agent'),
+            message: `Email verified for user: ${user.username}`
+        });
+        
+        // Send welcome email
+        sendWelcomeEmail(user.email, user.username);
+        
+        // Render success page
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Email Verified</title>
+                <style>
+                    body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
+                    .container { background: white; padding: 3rem; border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.2); max-width: 500px; text-align: center; }
+                    .success-badge { background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; display: inline-block; font-weight: bold; margin-bottom: 1rem; }
+                    h1 { color: #1f2937; margin: 1rem 0; }
+                    p { color: #6b7280; line-height: 1.6; margin: 1rem 0; }
+                    .login-link { display: inline-block; margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #667eea, #764ba2); color: white; text-decoration: none; border-radius: 0.5rem; font-weight: 500; }
+                    .login-link:hover { opacity: 0.9; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="success-badge">✓ VERIFIED</div>
+                    <h1>Email Verified Successfully!</h1>
+                    <p>Your email has been verified. You now have full access to all features of the voting app.</p>
+                    <a href="/login" class="login-link">Go to Login</a>
+                </div>
+            </body>
+            </html>
+        `);
+        
+    } catch (error) {
+        console.error('Email verification error:', error);
+        res.status(500).render('error', {
+            session: req.session,
+            csrfToken: '',
+            errorTitle: 'Verification Error',
+            errorMessage: 'An error occurred during email verification.'
+        });
+    }
+});
+
+// Resend Verification Email Route
+app.post('/resend-verification', csrfProtection, async (req, res) => {
+    try {
+        if (!req.session || !req.session.userId) {
+            return res.redirect('/login');
+        }
+        
+        const users = readJSON(USERS_FILE);
+        const user = users.find(u => u.id === req.session.userId);
+        
+        if (!user) {
+            return res.redirect('/login');
+        }
+        
+        if (user.emailVerified) {
+            return res.redirect('/vote');
+        }
+        
+        // Generate new token
+        const newToken = generateVerificationToken();
+        user.verificationToken = newToken;
+        user.verificationTokenCreatedAt = new Date().toISOString();
+        writeJSON(USERS_FILE, users);
+        
+        // Send verification email
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const verificationUrl = generateVerificationUrl(baseUrl, newToken);
+        sendVerificationEmail(user.email, verificationUrl);
+        
+        auditLogger.logEvent(AUDIT_EVENTS.EMAIL_VERIFICATION_SENT, {
+            userId: user.id,
+            username: user.username,
+            ip: req.ip,
+            message: `Verification email resent to ${user.email}`
+        });
+        
+        res.send('Verification email sent! Please check your inbox.');
+    } catch (error) {
+        console.error('Resend verification error:', error);
+        res.status(500).send('Error sending verification email');
+    }
+});
+
 app.get('/register', csrfProtection, (req, res) => {
     res.render('register', { 
         errorMessage: null,
+        successMessage: null,
         csrfToken: req.csrfToken()
     });
 });
@@ -367,11 +566,18 @@ app.post('/register',
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
+        const verificationToken = generateVerificationToken();
+        
         const newUser = {
             id: Date.now().toString(),
             username,
             email,
             passwordHash: hashedPassword,
+            role: getDefaultRole(), // Default role: customer
+            emailVerified: false,
+            verificationToken,
+            verificationTokenCreatedAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
             lastVote: null
         };
 
@@ -379,12 +585,38 @@ app.post('/register',
         writeJSON(USERS_FILE, users);
 
         // Log successful registration
-        logSecurityEvent(`User registered: ${username}`);
+        auditLogger.logEvent(AUDIT_EVENTS.REGISTRATION, {
+            userId: newUser.id,
+            username,
+            ip: req.ip,
+            userAgent: req.get('user-agent'),
+            message: `New user registered: ${username}`,
+            metadata: { email, role: newUser.role }
+        });
 
-        // Auto-login after registration
+        // Send verification email
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const verificationUrl = generateVerificationUrl(baseUrl, verificationToken);
+        sendVerificationEmail(email, verificationUrl);
+        
+        auditLogger.logEvent(AUDIT_EVENTS.EMAIL_VERIFICATION_SENT, {
+            userId: newUser.id,
+            username,
+            ip: req.ip,
+            message: `Verification email sent to ${email}`
+        });
+
+        // Auto-login after registration (but with limited access until verified)
         req.session.userId = newUser.id;
         req.session.username = newUser.username;
-        res.redirect('/');
+        req.session.role = newUser.role;
+        req.session.emailVerified = false;
+        
+        res.render('register', {
+            errorMessage: null,
+            successMessage: 'Registration successful! Please check your email to verify your account.',
+            csrfToken: req.csrfToken()
+        });
     } catch (error) {
         console.error('Registration error:', error);
         res.render('register', { 
@@ -435,7 +667,9 @@ app.post('/login',
         const user = users.find(u => u.username === username);
 
         if (!user) {
-            logSecurityEvent(`Failed login attempt (user not found): ${username}`);
+            auditLogger.logAuthentication(false, username, req.ip, req.get('user-agent'), {
+                reason: 'user not found'
+            });
             return res.render('login', { 
                 errorMessage: 'Invalid username or password.',
                 csrfToken: req.csrfToken()
@@ -445,18 +679,27 @@ app.post('/login',
         const validPassword = await bcrypt.compare(password, user.passwordHash || user.password);
 
         if (!validPassword) {
-            logSecurityEvent(`Failed login attempt (wrong password): ${username}`);
+            auditLogger.logAuthentication(false, username, req.ip, req.get('user-agent'), {
+                reason: 'wrong password'
+            });
             return res.render('login', { 
                 errorMessage: 'Invalid username or password.',
                 csrfToken: req.csrfToken()
             });
         }
 
+        // Set session data
         req.session.userId = user.id;
         req.session.username = user.username;
-        req.session.isAdmin = false;
+        req.session.role = user.role || getDefaultRole();
+        req.session.emailVerified = user.emailVerified || false;
+        req.session.isAdmin = user.role === ROLES.ADMINISTRATOR;
 
-        logSecurityEvent(`Successful login: ${username}`);
+        auditLogger.logAuthentication(true, username, req.ip, req.get('user-agent'), {
+            userId: user.id,
+            role: user.role
+        });
+        
         res.redirect('/');
     } catch (error) {
         console.error('Login error:', error);
@@ -471,7 +714,7 @@ app.get('/voting', isAuthenticated, csrfProtection, (req, res) => {
     res.redirect('/vote');
 });
 
-app.get('/vote', isAuthenticated, csrfProtection, (req, res) => {
+app.get('/vote', isAuthenticated, requirePermission(PERMISSIONS.VIEW_POLLS), csrfProtection, (req, res) => {
     const polls = readJSON(POLLS_FILE);
     const votes = readJSON(VOTES_FILE);
     const users = readJSON(USERS_FILE);
@@ -505,7 +748,7 @@ app.get('/vote', isAuthenticated, csrfProtection, (req, res) => {
     });
 });
 
-app.post('/vote', isAuthenticated, csrfProtection, (req, res) => {
+app.post('/vote', isAuthenticated, requirePermission(PERMISSIONS.CAST_VOTE), requireEmailVerification, csrfProtection, (req, res) => {
     try {
         const pollId = parseInt(req.body.pollId);
         const optionValue = req.body.option;
@@ -587,7 +830,14 @@ app.post('/vote', isAuthenticated, csrfProtection, (req, res) => {
         }
 
         // Log vote
-        logSecurityEvent(`Vote cast by user: ${req.session.username} for poll: ${pollId}, option: ${poll.options[optionIndex]}`);
+        auditLogger.logVote(
+            req.session.userId,
+            req.session.username,
+            pollId,
+            poll.options[optionIndex],
+            req.ip,
+            { userAgent: req.get('user-agent') }
+        );
 
         res.redirect('/vote');
     } catch (error) {
@@ -601,7 +851,7 @@ app.post('/vote', isAuthenticated, csrfProtection, (req, res) => {
     }
 });
 
-app.get('/results', isAuthenticated, csrfProtection, (req, res) => {
+app.get('/results', isAuthenticated, requirePermission(PERMISSIONS.VIEW_RESULTS), csrfProtection, (req, res) => {
     const polls = readJSON(POLLS_FILE);
     const votes = readJSON(VOTES_FILE);
 
@@ -635,6 +885,24 @@ app.get('/results', isAuthenticated, csrfProtection, (req, res) => {
         poll: poll,
         results: results
     });
+});
+
+// User Account/Profile Page
+app.get('/account', isAuthenticated, csrfProtection, (req, res) => {
+    try {
+        const users = readJSON(USERS_FILE);
+        const user = users.find(u => u.id === req.session.userId);
+        
+        res.render('account', {
+            session: req.session,
+            csrfToken: req.csrfToken(),
+            userEmail: user ? user.email : null,
+            successMessage: null
+        });
+    } catch (error) {
+        console.error('Account page error:', error);
+        res.redirect('/vote');
+    }
 });
 
 app.get('/admin-login', csrfProtection, (req, res) => {
@@ -674,6 +942,15 @@ app.post('/admin-login', authLimiter, csrfProtection, [
         req.session.isAdmin = true;
         req.session.adminUsername = username;
         req.session.username = username;
+        req.session.role = ROLES.ADMINISTRATOR;
+        req.session.emailVerified = true;
+
+        auditLogger.logEvent(AUDIT_EVENTS.ADMIN_LOGIN, {
+            username,
+            ip: req.ip,
+            userAgent: req.get('user-agent'),
+            message: `Admin logged in: ${username}`
+        });
 
         res.redirect('/admin');
     } catch (error) {
@@ -782,22 +1059,173 @@ app.post('/admin/change-username', isAdmin, csrfProtection, [
 
 // Admin Logout Route
 app.get('/admin/logout', (req, res) => {
+    auditLogger.logEvent(AUDIT_EVENTS.LOGOUT, {
+        userId: req.session?.userId,
+        username: req.session?.username || req.session?.adminUsername,
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+        message: `Admin logged out: ${req.session?.adminUsername || 'unknown'}`
+    });
     req.session.destroy();
     res.redirect('/admin-login');
 });
 
 app.post('/admin/logout', csrfProtection, (req, res) => {
+    auditLogger.logEvent(AUDIT_EVENTS.LOGOUT, {
+        userId: req.session?.userId,
+        username: req.session?.username || req.session?.adminUsername,
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+        message: `Admin logged out: ${req.session?.adminUsername || 'unknown'}`
+    });
     req.session.destroy();
     res.redirect('/admin-login');
 });
 
+// Admin route to view audit logs
+app.get('/admin/audit-logs', isAdmin, requirePermission(PERMISSIONS.VIEW_AUDIT_LOGS), csrfProtection, (req, res) => {
+    try {
+        const logs = auditLogger.getRecentLogs(100);
+        
+        auditLogger.logEvent(AUDIT_EVENTS.AUDIT_LOG_VIEWED, {
+            userId: req.session?.userId,
+            username: req.session?.username || req.session?.adminUsername,
+            ip: req.ip,
+            userAgent: req.get('user-agent'),
+            message: 'Admin viewed audit logs'
+        });
+        
+        res.render('audit-logs', {
+            session: req.session,
+            csrfToken: req.csrfToken(),
+            logs: logs.reverse() // Most recent first
+        });
+    } catch (error) {
+        console.error('Error loading audit logs:', error);
+        res.status(500).render('error', {
+            session: req.session,
+            csrfToken: req.csrfToken(),
+            errorTitle: 'Error Loading Logs',
+            errorMessage: 'An error occurred while loading audit logs.'
+        });
+    }
+});
+
+// Admin route to manage user roles
+app.get('/admin/manage-roles', isAdmin, requirePermission(PERMISSIONS.CHANGE_USER_ROLES), csrfProtection, (req, res) => {
+    try {
+        const users = readJSON(USERS_FILE);
+        
+        res.render('manage-roles', {
+            session: req.session,
+            csrfToken: req.csrfToken(),
+            users: users,
+            roles: ROLES,
+            errorMessage: null,
+            successMessage: null
+        });
+    } catch (error) {
+        console.error('Error loading user roles:', error);
+        res.status(500).render('error', {
+            session: req.session,
+            csrfToken: req.csrfToken(),
+            errorTitle: 'Error',
+            errorMessage: 'An error occurred while loading user roles.'
+        });
+    }
+});
+
+// Admin route to update user role
+app.post('/admin/update-role', isAdmin, requirePermission(PERMISSIONS.CHANGE_USER_ROLES), csrfProtection, [
+    body('userId').trim().notEmpty(),
+    body('newRole').trim().isIn(Object.values(ROLES))
+], (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            const users = readJSON(USERS_FILE);
+            return res.render('manage-roles', {
+                session: req.session,
+                csrfToken: req.csrfToken(),
+                users: users,
+                roles: ROLES,
+                errorMessage: 'Invalid input data',
+                successMessage: null
+            });
+        }
+        
+        const { userId, newRole } = req.body;
+        const users = readJSON(USERS_FILE);
+        const user = users.find(u => u.id === userId);
+        
+        if (!user) {
+            return res.render('manage-roles', {
+                session: req.session,
+                csrfToken: req.csrfToken(),
+                users: users,
+                roles: ROLES,
+                errorMessage: 'User not found',
+                successMessage: null
+            });
+        }
+        
+        const oldRole = user.role;
+        user.role = newRole;
+        writeJSON(USERS_FILE, users);
+        
+        auditLogger.logEvent(AUDIT_EVENTS.ROLE_CHANGE, {
+            userId: req.session?.userId,
+            username: req.session?.username || req.session?.adminUsername,
+            ip: req.ip,
+            userAgent: req.get('user-agent'),
+            message: `Role changed for user ${user.username}: ${oldRole} -> ${newRole}`,
+            metadata: { targetUserId: userId, targetUsername: user.username, oldRole, newRole }
+        });
+        
+        const updatedUsers = readJSON(USERS_FILE);
+        res.render('manage-roles', {
+            session: req.session,
+            csrfToken: req.csrfToken(),
+            users: updatedUsers,
+            roles: ROLES,
+            errorMessage: null,
+            successMessage: `Role updated successfully for ${user.username}`
+        });
+    } catch (error) {
+        console.error('Error updating role:', error);
+        const users = readJSON(USERS_FILE);
+        res.render('manage-roles', {
+            session: req.session,
+            csrfToken: req.csrfToken(),
+            users: users,
+            roles: ROLES,
+            errorMessage: 'An error occurred while updating the role',
+            successMessage: null
+        });
+    }
+});
+
 // User Logout Routes
 app.get('/logout', (req, res) => {
+    auditLogger.logEvent(AUDIT_EVENTS.LOGOUT, {
+        userId: req.session?.userId,
+        username: req.session?.username,
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+        message: `User logged out: ${req.session?.username || 'unknown'}`
+    });
     req.session.destroy();
     res.redirect('/login');
 });
 
 app.post('/logout', csrfProtection, (req, res) => {
+    auditLogger.logEvent(AUDIT_EVENTS.LOGOUT, {
+        userId: req.session?.userId,
+        username: req.session?.username,
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+        message: `User logged out: ${req.session?.username || 'unknown'}`
+    });
     req.session.destroy();
     res.redirect('/login');
 });
@@ -839,13 +1267,25 @@ app.use((req, res) => {
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log('Security features enabled:');
-    console.log('✓ Helmet security headers');
+    console.log('✓ Helmet security headers (CSP, HSTS)');
     console.log('✓ Session management with HttpOnly cookies');
-    console.log('✓ Rate limiting');
+    console.log('✓ Rate limiting on all routes');
     console.log('✓ CSRF protection');
     console.log('✓ Input validation and sanitization');
     console.log('✓ Enhanced password validation');
     console.log('✓ Password hashing with bcrypt');
     console.log('✓ Vote duplication prevention');
     console.log('✓ XSS prevention');
+    console.log('✓ Role-Based Access Control (RBAC)');
+    console.log('✓ Email verification system');
+    console.log('✓ Audit logging for security events');
+    console.log('✓ Granular permission system');
+    console.log('✓ Defense-in-depth security layers');
+    console.log('');
+    console.log('🔐 Advanced Security Features:');
+    console.log('  • 4 user roles: Guest, Customer, Editor, Administrator');
+    console.log('  • Permission matrix with 15+ granular permissions');
+    console.log('  • Comprehensive audit logging');
+    console.log('  • Email verification requirement');
+    console.log('  • Fail-safe defaults (deny by default)');
 });

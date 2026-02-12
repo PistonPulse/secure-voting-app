@@ -18,6 +18,12 @@
                 <div class="error-message"><%= errorMessage %></div>
             <% } %>
             
+            <% if (typeof successMessage !== 'undefined' && successMessage) { %>
+                <div class="success-message" style="background: #d1fae5; border: 1px solid #10b981; color: #065f46; padding: 12px; border-radius: 8px; margin-bottom: 1rem;">
+                    <%= successMessage %>
+                </div>
+            <% } %>
+            
             <form action="/register" method="POST">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 

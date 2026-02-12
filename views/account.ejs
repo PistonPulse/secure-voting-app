@@ -1,0 +1,131 @@
+<%- include('partials/header') %>
+
+<div class="container">
+    <div class="form-container" style="max-width: 700px;">
+        <h2>👤 My Account</h2>
+        
+        <% if (successMessage) { %>
+            <div style="background: #d1fae5; border: 1px solid #10b981; color: #065f46; padding: 12px; border-radius: 8px; margin-bottom: 1rem;">
+                ✓ <%= successMessage %>
+            </div>
+        <% } %>
+        
+        <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 24px;">
+            <!-- Account Information -->
+            <div style="margin-bottom: 32px;">
+                <h3 style="color: #667eea; margin-bottom: 16px; font-size: 18px;">📋 Account Information</h3>
+                
+                <div style="display: grid; gap: 16px;">
+                    <div style="display: flex; justify-content: space-between; padding: 12px; background: #f9fafb; border-radius: 8px;">
+                        <span style="color: #6b7280; font-weight: 500;">Username:</span>
+                        <span style="color: #1f2937; font-weight: 600;"><%= session.username %></span>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; padding: 12px; background: #f9fafb; border-radius: 8px;">
+                        <span style="color: #6b7280; font-weight: 500;">User ID:</span>
+                        <span style="color: #1f2937; font-family: monospace; font-size: 13px;"><%= session.userId %></span>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; padding: 12px; background: #f9fafb; border-radius: 8px;">
+                        <span style="color: #6b7280; font-weight: 500;">Email:</span>
+                        <span style="color: #1f2937;"><%= userEmail || 'Not available' %></span>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; padding: 12px; background: #f9fafb; border-radius: 8px;">
+                        <span style="color: #6b7280; font-weight: 500;">Role:</span>
+                        <span style="background: <%= session.role === 'admin' ? '#ef4444' : session.role === 'editor' ? '#f59e0b' : '#10b981' %>; color: white; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 600;">
+                            <%= (session.role || 'customer').toUpperCase() %>
+                        </span>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; padding: 12px; background: #f9fafb; border-radius: 8px; align-items: center;">
+                        <span style="color: #6b7280; font-weight: 500;">Email Verification:</span>
+                        <div>
+                            <% if (session.emailVerified) { %>
+                                <span style="color: #10b981; font-weight: 600;">✓ Verified</span>
+                            <% } else { %>
+                                <span style="color: #f59e0b; font-weight: 600;">⚠ Not Verified</span>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Email Verification Section -->
+            <% if (!session.emailVerified) { %>
+                <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 12px; padding: 20px; margin-bottom: 32px;">
+                    <h4 style="color: #856404; margin: 0 0 12px 0; font-size: 16px;">⚠️ Email Verification Required</h4>
+                    <p style="color: #856404; margin: 0 0 16px 0; font-size: 14px; line-height: 1.6;">
+                        Your email address has not been verified yet. You need to verify your email to cast votes on polls.
+                        Check your inbox for the verification email we sent when you registered.
+                    </p>
+                    <form action="/resend-verification" method="POST" style="margin: 0;">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        <button type="submit" style="background: #ffc107; color: #856404; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
+                            📧 Resend Verification Email
+                        </button>
+                    </form>
+                </div>
+            <% } %>
+            
+            <!-- Permissions Section -->
+            <div style="margin-bottom: 32px;">
+                <h3 style="color: #667eea; margin-bottom: 16px; font-size: 18px;">🔐 Your Permissions</h3>
+                
+                <div style="display: grid; gap: 8px;">
+                    <% 
+                    const rolePermissions = {
+                        'guest': ['View home page', 'View security page', 'Register', 'Login'],
+                        'customer': ['View polls', 'Cast votes (when email verified)', 'View results'],
+                        'editor': ['All customer permissions', 'Create polls', 'Edit polls', 'Delete polls'],
+                        'admin': ['All permissions', 'Manage users', 'Change roles', 'View audit logs', 'System settings']
+                    };
+                    const userRole = session.role || 'customer';
+                    const permissions = rolePermissions[userRole] || rolePermissions['customer'];
+                    %>
+                    
+                    <% permissions.forEach(permission => { %>
+                        <div style="padding: 10px 16px; background: #f0f9ff; border-left: 3px solid #667eea; border-radius: 6px; font-size: 14px; color: #1f2937;">
+                            <span style="color: #667eea; margin-right: 8px;">✓</span><%= permission %>
+                        </div>
+                    <% }); %>
+                </div>
+                
+                <p style="color: #9ca3af; font-size: 13px; margin-top: 12px; font-style: italic;">
+                    * Permissions are determined by your role. Contact an administrator to request role changes.
+                </p>
+            </div>
+            
+            <!-- Account Actions -->
+            <div style="border-top: 2px solid #e5e7eb; padding-top: 24px;">
+                <h3 style="color: #667eea; margin-bottom: 16px; font-size: 18px;">⚡ Quick Actions</h3>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                    <a href="/vote" style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; text-decoration: none; border-radius: 8px; font-weight: 500; transition: transform 0.2s;">
+                        <span>🗳️</span>
+                        <span>Vote on Polls</span>
+                    </a>
+                    
+                    <a href="/results" style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: #10b981; color: white; text-decoration: none; border-radius: 8px; font-weight: 500; transition: transform 0.2s;">
+                        <span>📊</span>
+                        <span>View Results</span>
+                    </a>
+                    
+                    <% if (session.role === 'admin') { %>
+                        <a href="/admin" style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: #ef4444; color: white; text-decoration: none; border-radius: 8px; font-weight: 500; transition: transform 0.2s;">
+                            <span>🛡️</span>
+                            <span>Admin Dashboard</span>
+                        </a>
+                    <% } %>
+                    
+                    <a href="/logout" style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: #6b7280; color: white; text-decoration: none; border-radius: 8px; font-weight: 500; transition: transform 0.2s;">
+                        <span>🚪</span>
+                        <span>Logout</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %>

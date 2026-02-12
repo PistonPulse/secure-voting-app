@@ -7,7 +7,11 @@
                 <div class="header-main">
                     <h2>🗳️ Active Polls</h2>
                     <% if (session && session.username) { %>
-                        <p class="user-welcome">Welcome, <strong><%= session.username %></strong>!</p>
+                        <p class="user-welcome">Welcome, <strong><%= session.username %></strong>! 
+                        <% if (session.role) { %>
+                            <span style="background: <%= session.role === 'admin' ? '#ef4444' : session.role === 'editor' ? '#f59e0b' : '#10b981' %>; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-left: 8px;"><%= session.role.toUpperCase() %></span>
+                        <% } %>
+                        </p>
                     <% } %>
                 </div>
                 <div class="header-actions">
@@ -16,6 +20,26 @@
                 </div>
             </div>
         </header>
+        
+        <!-- Email Verification Warning -->
+        <% if (session && session.userId && !session.emailVerified) { %>
+            <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 12px; padding: 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
+                <div style="font-size: 24px;">⚠️</div>
+                <div style="flex: 1;">
+                    <strong style="color: #856404; display: block; margin-bottom: 4px;">Email Verification Required</strong>
+                    <p style="color: #856404; margin: 0; font-size: 14px;">Please verify your email address to cast votes. Check your email for the verification link.</p>
+                </div>
+                <form action="/resend-verification" method="POST" style="margin: 0;">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit" style="background: #ffc107; color: #856404; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; white-space: nowrap;">📧 Resend Email</button>
+                </form>
+            </div>
+        <% } else if (session && session.userId && session.emailVerified) { %>
+            <div style="background: #d1fae5; border: 2px solid #10b981; border-radius: 12px; padding: 12px 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 8px;">
+                <span style="color: #065f46; font-size: 16px;">✓</span>
+                <span style="color: #065f46; font-weight: 500; font-size: 14px;">Email verified - You can now vote on polls</span>
+            </div>
+        <% } %>
 
         <div class="polls-grid">
             <% if (!poll) { %>
